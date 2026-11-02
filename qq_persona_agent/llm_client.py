@@ -12,6 +12,10 @@ class LLMError(RuntimeError):
     pass
 
 
+class LLMRequestSkipped(LLMError):
+    """A caller gate closed before the first request or a format retry."""
+
+
 class LLMResponseError(LLMError):
     """A successful provider request whose content cannot be safely consumed."""
     def __init__(self, message, code):
@@ -26,8 +30,10 @@ class LLMClient:
                                  max_retries=0, timeout=settings.timeout,
                                  http_client=httpx.AsyncClient(proxy=settings.proxy or None, timeout=settings.timeout, trust_env=False))
 
-    async def complete(self, messages, json_mode=False, agent_id=None, max_tokens=4096):
+    async def complete(self, messages, json_mode=False, agent_id=None, max_tokens=4096, can_request=None):
         for attempt in range(2 if json_mode else 1):
+            if can_request is not None and not can_request():
+                raise LLMRequestSkipped('回复请求因冷却或停止而跳过')
             current = messages if attempt == 0 else [*messages, {'role': 'user', 'content': '上次响应未通过内部 JSON 格式校验。请重新回答，仅输出一个符合上述字段要求的 JSON 对象，不要输出 Markdown、解释、裸文本或空白。'}]
             try:
                 return await self._complete_once(current, json_mode, agent_id, max_tokens, attempt)

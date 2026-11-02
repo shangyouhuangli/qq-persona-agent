@@ -6,17 +6,84 @@ GitHub仓库包含完整源码、测试、Skill/MCP和打包配置；Windows单�
 
 历史分页兼容修复已合并到唯一正式程序 `dist/QQPersonaAgent.exe`。旧版程序和临时补丁已移出项目备份；历史原因见 [分页问题记录](docs/HISTORY_FIX.md)。
 
+## 下载与快速开始
+
+1. 从 [本项目 Releases](https://github.com/shangyouhuangli/qq-persona-agent/releases/latest) 下载 `QQPersonaAgent.exe` 和 `SHA256SUMS.txt`。
+2. 按下一节安装并登录 NapCat，配置 HTTP 与正向 WebSocket。
+3. 双击本程序，在设置页保存 DeepSeek 和 NapCat 配置，再执行两项连接测试。
+4. 按“导出预览 → 导出 → 人格预览 → 候选预览 → 人工批准”完成第一次测试。
+
+exe 无需安装 Python。源码下载包不含 exe、本地虚拟环境、UPX、账号配置和群记录；exe 从 Releases 单独下载。项目源码放在同一目录时，正式程序位于 `dist/QQPersonaAgent.exe`；本机已有的启动快捷方式只是便利入口，GitHub 下载包不包含快捷方式。
+
+## 安装 NapCat（Windows）
+
+本程序是应用端，NapCat 是连接 QQ 的协议端，两者需分别运行。机器人 QQ 必须加入源群和目标群，实际消息由机器人 QQ 发出。以下按 NapCat 与本程序在同一台 Windows 电脑说明。
+
+### 方式一：官方 Windows 一键安装（推荐新用户）
+
+1. 打开 [NapCat 官方 Releases](https://github.com/NapNeko/NapCatQQ/releases/latest)，展开 **Assets**。
+2. 下载 `NapCat.Shell.Windows.OneKey.zip`，完整解压到固定目录，例如 `D:\NapCat`，不要直接在压缩包里运行。
+3. 运行解压后的 `NapCatInstaller.exe`，按安装器提示完成 QQ 和 NapCat 部署；这种方式无需事先安装 QQ。
+4. 安装完成后进入生成的 `NapCat.XXXX.Shell` 目录，双击 `napcat.bat`。
+5. 按控制台提示扫码登录机器人 QQ，保持 NapCat 启动。
+6. 打开控制台输出的 WebUI 地址。通常为 `http://127.0.0.1:6099/webui/`，实际地址、端口和登录密钥以启动日志为准。首次登录若要求修改 WebUI 密码，先完成修改。
+
+官方安装器和启动入口可能随版本变化，以下载包说明为准。[官方 Shell 安装教程](https://napneko.github.io/guide/boot/Shell)
+
+### 方式二：已有 QQ，手动安装 Shell
+
+从官方 Releases 下载 `NapCat.Shell.zip`，安装官方文档支持的 QQ 版本并完整解压 NapCat。Windows 11 运行 `launcher.bat`；Windows 10 按官方教程运行 `launcher-win10.bat`，按控制台提示登录并打开 WebUI。
+
+`NapCat.Framework.zip` 是 LiteLoaderQQNT 插件包，适用于已部署 LiteLoader 的环境，不等同于一键安装器。已有 Framework 安装可继续使用，不必再安装第二套；升级前退出对应 QQ/NapCat，备份原配置，按官方方式升级。Shell、Framework 及 Node 包的用途见 [官方安装包说明](https://napneko.github.io/guide/boot/release)。
+
+### 配置 HTTP 和正向 WebSocket
+
+在 NapCat WebUI 的 **网络配置 → 新建** 中分别创建以下两个服务：
+
+| 配置 | HTTP 服务器 | WebSocket 服务器（正向 WS） |
+|---|---|---|
+| 启用 | 开启 | 开启 |
+| Host / 监听地址 | `127.0.0.1` | `127.0.0.1` |
+| 端口 | `3000` | `3001` |
+| Token | 自设较长随机字符串 | 与 HTTP 填相同 Token |
+| 消息上报格式（若有） | `array` | `array` |
+| 上报自身消息（若有） | 关闭 | 关闭 |
+| Debug（若有） | 关闭 | 关闭 |
+
+保存并应用；如页面要求重启，重启 NapCat。选择 **WebSocket 服务器**，不要误建成 WebSocket 客户端（反向 WS）。WebUI 登录密码和这里的 OneBot 服务 Token 是两套凭据，本程序填写的是服务 Token。[官方网络配置指南](https://napneko.github.io/config/basic)
+
+本机运行无需公网映射。端口已占用时可换其他空闲端口，同时修改本程序对应地址。若 NapCat 在另一台电脑或 Docker 中，`127.0.0.1` 不再指向它；需要额外配置实际主机地址、端口映射和访问权限，本教程的本机地址不能直接照搬。
+
+### 在本程序中连接
+
+| 本程序设置项 | 填写内容 |
+|---|---|
+| NapCat HTTP | `http://127.0.0.1:3000` |
+| NapCat WebSocket | `ws://127.0.0.1:3001` |
+| NapCat Token | 上面两个服务的相同 Token，不带 `Bearer ` 前缀 |
+| DeepSeek API Key | 自己账户的 Key |
+| DeepSeek Base URL | 默认 `https://api.deepseek.com` |
+| 模型 | 默认 `deepseek-chat`，以账户实际可用模型为准 |
+| 全局代理 | 本机直连时先留空 |
+| 请求超时 | 默认 30 秒，可按网络情况调整 |
+
+点击 **保存设置**，再点击 **测试 NapCat** 和 **测试 DeepSeek**。NapCat 测试验证 HTTP 登录接口；WebSocket 由部署监听时连接。DeepSeek 测试会调用一次 JSON 输出请求，产生少量 API 费用。WS 不可用时程序可通过 HTTP 每 3 秒补读，但建议仍配置正向 WS 以降低实时延迟。
+
+本项目已在 NapCat 4.18.42 上验证 HTTP 登录和历史翻页。旧版 4.7.5 存在已确认的历史分页方向问题；遇到反复读到同一页请升级，而非清空聊天数据库。参见 [分页问题记录](docs/HISTORY_FIX.md)。
+
 ## 文件位置
 
-- `dist/QQPersonaAgent.exe`：唯一正式程序；根目录快捷方式可直接启动。
-- `exports/`：你手动保存的人格 JSON，已从程序目录分开保留。
-- `qq_persona_agent/`、`tests/`：源码和测试。
-- `docs/`：设计、验收和维护记录。
-- `scripts/`、`build.spec`：构建及 MCP 配置示例生成脚本。
-- `skills/`、`examples/`：Agent Skill 和 MCP 配置示例。
-- `.venv/`、`tools/`：源码/MCP 运行环境和 UPX；不影响双击 exe 使用。
-- 配置和聊天数据仍在 `%LOCALAPPDATA%/QQPersonaAgent/`。
-- 旧版本、维护备份放在项目外 `%LOCALAPPDATA%/QQPersonaAgentMaintenance/20261102-upgrade/`。
+| 位置 | 内容 |
+|---|---|
+| `dist/` | 本机构建/下载的唯一正式 exe 和校验和，不提交源码仓库 |
+| `exports/` | 用户自行导出的画像，可能包含个人内容，不提交仓库 |
+| `qq_persona_agent/`、`tests/` | 程序源码、数据库 DDL 和测试 |
+| `docs/` | 设计、验收与维护记录 |
+| `scripts/`、`build.spec` | 构建、MCP 配置生成脚本 |
+| `skills/`、`examples/` | Agent Skill 与通用 MCP 配置示例 |
+| `%LOCALAPPDATA%/QQPersonaAgent/` | 加密设置、聊天数据库、默认历史导出 |
+
+本地 `.venv/` 为源码和 MCP 的 Python 环境；`tools/upx/` 由构建者准备。它们不在 GitHub 源码包中。
 
 先阅读 [设计与接口](docs/DESIGN.md) 和 [验收记录](docs/ACCEPTANCE.md)。本项目只参考 LangBot 的适配器/共用服务分层，未复制第三方源码。
 
@@ -29,6 +96,8 @@ GitHub仓库包含完整源码、测试、Skill/MCP和打包配置；Windows单�
 ## 源码运行与最小验证
 
 ```powershell
+git clone https://github.com/shangyouhuangli/qq-persona-agent.git
+cd qq-persona-agent
 python -m venv .venv
 .\.venv\Scripts\python -m pip install -e ".[dev]"
 .\.venv\Scripts\python -m pytest -q
@@ -51,7 +120,36 @@ GUI 使用 `PySide6-Essentials` 发行包，包含 QtCore/Gui/Widgets，不安�
 
 参数保存会停止当前运行。token 预算以 UTF-8 字节数作保守上界，模型实际计费 token 在日志中显示。人格/锁定块与长期记忆共享预算，超限部署会拒绝，不静默截断人格。短期上下文另设预算；中期检索为本地关键词相关性，不依赖向量服务。记忆反思在空闲或消息累计阈值触发，主动发起默认关闭。
 
+QQ每条回复最大字符数（含标点）与短/中/长回复权重可在参数页调整，默认10字符、65/25/10权重。三档预算分别为最大字符数的三分之一、三分之二和全长（向下取整，至少1字符）。例如最大30字符、权重1/2/7，代表以10%/20%/70%的概率选用最多10/20/30字符预算，实际回复可以更短。权重无需合计100，可将某档设0，不能全部为0。保存参数并重新启用智能体生效；模型超预算结果会本地截短，人工编辑及发送兜底按全局最大字符数校验。
+
+“发送后禁止调用回复 API（秒）”沿用原冷却参数，默认30秒，从本次最后一条成功发送后计时。连发期间和冷却期间仅读取、显示、记忆新消息，不生成候选、不进行格式重试；旧触发队列丢弃，时间到了只响应后续新消息，不补答冷却期间内容。记忆反思也延后到冷却结束。冷却开始前已经发出的请求不能撤销已产生的计费，返回时会再次检查，避免变成新的发送候选。
+
 模型连接正常仍可能返回空白、截断或错误 JSON。JSON调用遇到内容格式异常最多额外重试一次（这会消耗一次API额度）；仍失败则跳过本轮并继续读取群聊。自主模式连续3轮格式异常会切回人工审批。日志只记录 `empty_content`、`output_truncated`、`invalid_json`、`json_not_object` 等分类、返回字符数和结束原因，不记录返回正文。认证/账户/连接故障与发送失败仍会停止；发送不自动重试。“测试 DeepSeek”同时验证JSON输出，不再只检查普通文本响应。
+
+## 常见问题
+
+| 现象 | 原因与处理 |
+|---|---|
+| NapCat 401 / Token 错误 | HTTP/WS 服务 Token 必须与本程序一致；不要填 WebUI 密码 |
+| 连接被拒绝 / WS 中断 | 检查对应服务已启用、端口正确；HTTP 是3000，正向WS是3001；先在WebUI保存应用 |
+| 能导出，但没有实时候选 | 先加载人格并启用；默认仅被 @ 触发。普通群聊需选“自主判断”并应用到当前智能体 |
+| 机器人自己发消息不生成候选 | 为防止自回复循环，自身消息只展示；用另一个群成员发送测试消息 |
+| 历史消息显示但不回复 | 设计如此：最近历史仅展示和提供上下文，不追溯发送；启用后等待新消息 |
+| `partial` / 游标停滞 | 历史并未全部获取；升级旧NapCat并检查账号能访问的记录，使用“恢复上次中断”去重续传 |
+| `low_sample=True` | 有效文本或实际分析样本不足100条，扩大时间范围/上限；画像低置信度并非连接失败 |
+| 生成候选但不发送 | 默认人工模式；选择候选、编辑后批准。自主发送需单独勾选并确认 |
+| 冷却时不调用模型 | 参数页“发送后禁止调用回复 API”正在生效；消息仍显示记忆，期满不补答旧触发 |
+| `empty_content` / `invalid_json` | 模型返回格式异常，最多重试一次，失败跳过本轮；连续异常会切回人工审批 |
+| 人格超过记忆预算 | 缩短人格提示词或增加参数页的长期记忆预算，含锁定块成本 |
+| GUI/MCP 提示实例已运行 | 关闭另一实例后重试；两者共用本地数据且只允许运行一个 |
+| exe 第一次启动慢 | PyInstaller单文件需先解压临时资源；程序未签名，下载后可核对SHA256 |
+
+验证下载文件：
+
+```powershell
+Get-FileHash .\QQPersonaAgent.exe -Algorithm SHA256
+# 将 Hash 与同一 Release 的 SHA256SUMS.txt 比较
+```
 
 ## 数据与日志
 
@@ -102,3 +200,16 @@ powershell -ExecutionPolicy Bypass -File scripts/build.ps1 -NoUPX
 资源相对包 `__file__` 定位，PyInstaller 会指向 `_MEIPASS` 中的包；`resource_path()` 为额外资源提供 `_MEIPASS` 兼容入口。不要在 `_MEIPASS` 中保存可变配置。
 
 当前 exe 未做代码签名。清洁 Windows 10/11 机器、真实 NapCat 与 DeepSeek 的联网验收需按验收表完成；mock 与离线自检不代表这些项目已经通过。
+
+## 验证范围与参考
+
+当前源码通过66项测试，涵盖分页恢复、加密、JSON异常处理、实时读取、审批/停止、回复长度权重及调用前冷却；单文件在本机通过离屏和原生Windows启动自检。这不代表每个QQ/NapCat版本、模型服务或清洁Windows机器均已验证。
+
+- [本项目发布与下载](https://github.com/shangyouhuangli/qq-persona-agent/releases)
+- [NapCat 官方项目](https://github.com/NapNeko/NapCatQQ)
+- [NapCat Windows 安装](https://napneko.github.io/guide/boot/Shell)
+- [NapCat 网络配置](https://napneko.github.io/config/basic)
+- [DeepSeek JSON Output](https://api-docs.deepseek.com/guides/json_mode/)
+- [LangBot 平台适配器参考](https://github.com/langbot-app/LangBot/blob/master/src/langbot/pkg/platform/sources/aiocqhttp.py)
+
+NapCat/QQ作为外部依赖单独安装和升级，不随本程序Release重新分发。请只处理有权使用的聊天记录，并向群友说明风格模拟身份。

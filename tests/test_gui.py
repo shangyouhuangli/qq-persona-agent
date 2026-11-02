@@ -51,3 +51,22 @@ def test_recent_chat_auto_load_and_event_display(tmp_path):
     assert page.messages.toPlainText().count('实时消息') == 1
     assert window.services.runtime.status == 'stopped'  # Reading history never enables sending/listening.
     window.close()
+
+
+def test_reply_length_controls_and_probability_hint(tmp_path):
+    os.environ['QT_QPA_PLATFORM']='offscreen'
+    from PySide6.QtWidgets import QApplication
+    from qq_persona_agent.app_gui import MainWindow
+    app=QApplication.instance() or QApplication([])
+    w=MainWindow(tmp_path/'gui.db')
+    page=w.tuning_page
+    page.controls['max_reply_chars'].setValue(30)
+    page.controls['short_reply_weight'].setValue(1)
+    page.controls['medium_reply_weight'].setValue(2)
+    page.controls['long_reply_weight'].setValue(7)
+    assert page.value().reply_length_limits()==(10,20,30)
+    assert '70.0%' in page.length_hint.text()
+    page.defaults()
+    assert page.value().max_reply_chars==10
+    assert page.value().reply_length_weights()==(65,25,10)
+    w.close()

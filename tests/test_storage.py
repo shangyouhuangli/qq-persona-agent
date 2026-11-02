@@ -51,3 +51,22 @@ def test_clear(db, persona):
     SettingsStore(db).save(Settings(api_key='abc'))
     db.clear()
     assert not db.all('SELECT * FROM personas') and not db.all('SELECT * FROM settings')
+
+
+def test_reply_settings_roundtrip_and_legacy_defaults(db):
+    from qq_persona_agent.config import Tuning
+    store=SettingsStore(db)
+    store.save(Tuning(max_reply_chars=60,short_reply_weight=2,medium_reply_weight=1,long_reply_weight=0))
+    t=store.load(Tuning)
+    assert t.reply_length_limits()==(20,40,60)
+    assert t.reply_length_weights()==(2,1,0)
+    legacy={'cooldown':42,'max_replies':2}
+    db.execute("UPDATE settings SET value_encrypted=? WHERE key='Tuning'",(db.crypto.encrypt(json.dumps(legacy)).encode('ascii'),))
+    old=store.load(Tuning)
+    assert old.cooldown==42 and old.max_reply_chars==10 and old.reply_length_weights()==(65,25,10)
+
+
+@pytest.mark.parametrize('values',[{'max_reply_chars':0},{'max_reply_chars':2001},{'short_reply_weight':-1},{'short_reply_weight':0,'medium_reply_weight':0,'long_reply_weight':0}])
+def test_invalid_reply_settings_rejected(values):
+    from qq_persona_agent.config import Tuning
+    with pytest.raises(ValueError):Tuning(**values).validate()

@@ -8,10 +8,13 @@ class RiskControl:
         self.last_send = float('-inf')
         self.cool_until = 0
 
+    def remaining(self):
+        return max(0, self.cool_until - time.monotonic())
+
     def check(self, text):
         now = time.monotonic()
-        if not text.strip() or len(text) > 2000:
-            return '回复为空或超出 2000 字符'
+        if not text.strip() or len(text) > self.tuning.max_reply_chars:
+            return f'回复为空或超过{self.tuning.max_reply_chars}个字符（含标点）'
         if now < self.cool_until or now - self.last_send < self.tuning.min_interval:
             return '频率限制，请等待冷却'
         digest = hashlib.sha256(text.strip().encode()).hexdigest()

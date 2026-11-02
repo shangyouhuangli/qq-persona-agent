@@ -103,8 +103,23 @@ class Tuning:
     allow_initiate: bool = False
     sensitive_words: str = ''
     include_faces: bool = False
+    max_reply_chars: int = 10
+    short_reply_weight: int = 65
+    medium_reply_weight: int = 25
+    long_reply_weight: int = 10
+
+    def reply_length_limits(self):
+        return (max(1, self.max_reply_chars // 3), max(1, self.max_reply_chars * 2 // 3), self.max_reply_chars)
+
+    def reply_length_weights(self):
+        return (self.short_reply_weight, self.medium_reply_weight, self.long_reply_weight)
 
     def validate(self):
+        if type(self.max_reply_chars) is not int or not 1 <= self.max_reply_chars <= 2000:
+            raise ValueError('每条回复最大字符数必须为1~2000')
+        weights = self.reply_length_weights()
+        if any(type(w) is not int or not 0 <= w <= 1000 for w in weights) or sum(weights) == 0:
+            raise ValueError('短/中/长回复权重必须为0~1000，且至少一个大于0')
         if not 1 <= self.max_replies <= 3:
             raise ValueError('连发上限必须为 1~3')
         if not 0 <= self.delay_min <= self.delay_max <= 300 or self.min_interval < 0 or self.cooldown < 0:

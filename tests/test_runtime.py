@@ -337,3 +337,87 @@ async def test_authentication_failure_still_stops_runtime(db, persona):
         if runtime.status == 'stopped':break
         await asyncio.sleep(.005)
     assert runtime.stop_flag.is_set() and runtime.status == 'stopped' and not runtime.napcat.sent
+
+
+async def test_cooldown_blocks_calls_and_does_not_replay_messages(db, persona):
+    class CountLLM(LLM):
+        def __init__(self):super().__init__();self.calls=0
+        async def complete(self,*args,**kwargs):self.calls+=1;return await super().complete(*args,**kwargs)
+    llm, events = CountLLM(), []
+    runtime = AgentRuntime(db, Nap(), llm, tuning(), events.append)
+    await runtime.start(persona, '234567890')
+    runtime.risk.cool_until = time.monotonic()+60
+    for i in range(5):await runtime.ingest(event(mid=f'cool-{i}'))
+    runtime.queue.put_nowait(({'text':'旧队列消息'},runtime.generation))
+    await asyncio.sleep(.02)
+    assert llm.calls == 0 and runtime.queue.empty()
+    assert len([e for e in events if e['kind']=='message'])==5
+    runtime.risk.cool_until = 0
+    await asyncio.sleep(.02)
+    assert llm.calls == 0  # No catch-up after cooling down.
+    await runtime.ingest(event(mid='after-cool'))
+    await asyncio.wait_for(llm.started.wait(),1)
+    assert llm.calls == 1
+    await runtime.stop()
+
+
+async def test_burst_blocks_generation_and_cooldown_starts_after_last_send(db, persona):
+    class SlowNap(Nap):
+        def __init__(self):super().__init__();self.entered=asyncio.Event();self.release=asyncio.Event()
+        async def send_group_msg(self,gid,text):self.entered.set();await self.release.wait();await super().send_group_msg(gid,text)
+    nap,llm=SlowNap(),LLM()
+    t=tuning();t.cooldown=60
+    runtime=AgentRuntime(db,nap,llm,t)
+    await runtime.start(persona,'234567890')
+    cid=await candidate(runtime)
+    llm.started.clear()
+    sending=asyncio.create_task(runtime.approve(cid,['好','知道了']))
+    await nap.entered.wait()
+    await runtime.ingest(event(mid='during-burst'))
+    assert runtime.is_sending and runtime.queue.empty() and not llm.started.is_set()
+    nap.release.set();await sending
+    assert len(nap.sent)==2 and runtime.risk.remaining()>59 and not runtime.is_sending
+    await runtime.ingest(event(mid='during-cool'))
+    await asyncio.sleep(.02)
+    assert not llm.started.is_set()
+    await runtime.stop()
+
+
+@pytest.mark.parametrize('budget',[3,6,10])
+async def test_generated_replies_respect_weighted_budget(db,persona,monkeypatch,budget):
+    import qq_persona_agent.agent_runtime as module
+    seen=[]
+    def choose(population,weights,k):seen.append((population,weights));return [budget]
+    monkeypatch.setattr(module.random,'choices',choose)
+    class LongLLM:
+        async def complete(self,*args,**kwargs):return {'should_reply':True,'replies':['这是明显超过十个字的很长的模型回答']}
+    runtime=AgentRuntime(db,Nap(),LongLLM(),tuning())
+    await runtime.start(persona,'234567890')
+    cid=await candidate(runtime)
+    assert len(runtime.pending[cid]['replies'][0])==budget
+    assert seen[0]==((3,6,10),(65,25,10))
+    with pytest.raises(ValueError,match='10'):
+        await runtime.approve(cid,['一二三四五六七八九十一'])
+    assert cid in runtime.pending and not runtime.napcat.sent
+    await runtime.stop()
+
+
+async def test_custom_length_and_weights_apply_to_generation_and_sending(db, persona, monkeypatch):
+    import qq_persona_agent.agent_runtime as module
+    seen=[]
+    def choose(population,weights,k):seen.append((population,weights));return [population[-1]]
+    monkeypatch.setattr(module.random,'choices',choose)
+    text='一二三四五六七八九十一二三四五六'
+    class CustomLLM:
+        async def complete(self,messages,**kwargs):
+            assert '全局上限为30个' in messages[1]['content']
+            return {'should_reply':True,'replies':[text]}
+    t=tuning(max_reply_chars=30,short_reply_weight=0,medium_reply_weight=0,long_reply_weight=7)
+    runtime=AgentRuntime(db,Nap(),CustomLLM(),t)
+    await runtime.start(persona,'234567890')
+    cid=await candidate(runtime)
+    assert seen==[((10,20,30),(0,0,7))]
+    assert runtime.pending[cid]['replies']==[text]
+    await runtime.approve(cid)
+    assert runtime.napcat.sent==[('234567890',text)]
+    await runtime.stop()

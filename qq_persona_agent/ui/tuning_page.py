@@ -3,7 +3,8 @@ from PySide6.QtWidgets import QWidget, QFormLayout, QVBoxLayout, QLabel, QLineEd
 from ..config import Tuning
 from .common import button, row, spin
 
-LABELS = ['识别：最近群消息条数', '识别：token 预算', '短期：保留轮数', '中期：检索 top-k', '记忆：人格+锁定块+长期 token 预算', '空闲反思间隔（分钟）', '批量反思消息数', '最大连续回复（1~3）', '最小回复间隔（秒）', '随机延迟下限（秒）', '随机延迟上限（秒）', '连发后冷却（秒）', '相同内容去重窗口（秒）', '读取失败重试次数（发送不重试）', '分析单条最大字符数', '分析总 token 预算', '允许主动发起话题', '敏感词（英文逗号分隔）', '分析表情使用习惯']
+LABELS = ['识别：最近群消息条数', '识别：token 预算', '短期：保留轮数', '中期：检索 top-k', '记忆：人格+锁定块+长期 token 预算', '空闲反思间隔（分钟）', '批量反思消息数', '最大连续回复（1~3）', '最小回复间隔（秒）', '随机延迟下限（秒）', '随机延迟上限（秒）', '发送后禁止调用回复 API（秒）', '相同内容去重窗口（秒）', '读取失败重试次数（发送不重试）', '分析单条最大字符数', '分析总 token 预算', '允许主动发起话题', '敏感词（英文逗号分隔）', '分析表情使用习惯']
+LABELS += ['每条回复最多字符数（含标点）', '短回复权重', '中等回复权重', '长回复权重']
 
 
 class TuningPage(QWidget):
@@ -25,8 +26,18 @@ class TuningPage(QWidget):
                 control = QLineEdit(val)
             else:
                 control = spin(val, floating=isinstance(val, float))
+                if f.name == 'max_reply_chars':
+                    control.setRange(1, 2000)
+                elif f.name.endswith('_reply_weight'):
+                    control.setRange(0, 1000)
             self.controls[f.name] = control
             form.addRow(label, control)
+        self.length_hint = QLabel()
+        self.length_hint.setWordWrap(True)
+        form.addRow('长度分布说明', self.length_hint)
+        for key in ('max_reply_chars', 'short_reply_weight', 'medium_reply_weight', 'long_reply_weight'):
+            self.controls[key].valueChanged.connect(self.update_length_hint)
+        self.update_length_hint()
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(content)
@@ -36,6 +47,15 @@ class TuningPage(QWidget):
 
     def value(self):
         return Tuning(**{k: w.isChecked() if isinstance(w, QCheckBox) else w.text() if isinstance(w, QLineEdit) else w.value() for k, w in self.controls.items()})
+
+    def update_length_hint(self, *_):
+        t = self.value()
+        caps, weights = t.reply_length_limits(), t.reply_length_weights()
+        total = sum(weights)
+        if not total:
+            self.length_hint.setText('至少设置一个非零权重后才能保存。')
+            return
+        self.length_hint.setText('；'.join(f'{label}≤{cap}字符，预算选择概率{weight/total:.1%}' for label, cap, weight in zip(('短句', '中句', '长句'), caps, weights)) + '。权重自动归一化，无需合计100；是长度预算概率，实际回复可更短。保存后重新启用生效。')
 
     def save(self):
         try:

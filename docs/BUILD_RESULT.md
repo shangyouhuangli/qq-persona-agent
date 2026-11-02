@@ -3,12 +3,12 @@
 日期：2026-11-02；构建主机 Windows 11 x64，Python 3.12.4。
 
 - 产物：`dist/QQPersonaAgent.exe`
-- 大小：46,447,620 bytes（约 44.30 MiB）
-- SHA256：`fede088eff3a87fa919b5abc5f10c6cbf5bd5af1f6e89e9444a80b45200bcf0d`
+- 大小：46,451,863 bytes（约 44.30 MiB）
+- SHA256：`a4af99bbd4a789ac1dfac237ed1b571544b33a3a94fef752fc92824feb2dc6c5`
 - PyInstaller 6.22.3，onefile / windowed，PE Subsystem=2（WINDOWS_GUI）。
 - UPX 4.2.4 官方 Windows 版本；`upx=True`。Qt/Python DLL 和 CFG 保护二进制排除压缩，保留正常加载。
 - PySide6 Essentials 6.8.3（QtWidgets）。platforms 插件显式收集。
-- 自动测试：53 passed，包含实时读取、格式错误有限重试、跳过异常轮次、继续处理下一条和自主发送降级。
+- 自动测试：66 passed，新增短句长度、连发及冷却期间零回复调用、旧队列不补答、格式重试门禁测试。
 - Skill：通过官方 skill-creator `quick_validate.py`，使用 `python -X utf8` 运行。
 - Codex TOML 与 Claude Code JSON 示例已解析验证，入口路径存在。
 - 源码 GUI 离线/原生启动通过；五页布局已渲染并检查，中文显示正常。
@@ -22,3 +22,7 @@
 后续维护：用户已授权升级现有NapCat；升级、备份及整理见MAINTENANCE.md。正式程序统一为QQPersonaAgent.exe，不再保留fixed等并列版本。
 
 JSON可靠性更新见LLM_FORMAT_FIX.md；已对最终exe再次完成隔离PATH的离屏及原生Windows窗口启动自检。旧exe和构建缓存放在项目外QQPersonaAgentMaintenance/20261102-llm-format目录。
+
+2026-11-03短句与调用前冷却更新见SHORT_REPLIES.md；新版exe通过离屏和原生Windows启动自检，备份与构建缓存在QQPersonaAgentMaintenance/20261103-short-replies目录。
+
+2026-11-03：参数页新增最大回复字符数及短/中/长权重、归一化概率提示。旧配置兼容、参数持久化及大于10字生成发送验证通过；新版单文件离屏/原生Windows启动自检通过。

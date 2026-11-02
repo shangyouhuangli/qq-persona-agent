@@ -103,3 +103,19 @@ async def test_complete_fenced_object_accepted(db):
     llm.client = AsyncOpenAI(api_key='fake', http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
     assert await llm.complete([{'role': 'user', 'content': 'json'}], json_mode=True) == {'ok': True}
     await llm.close()
+
+
+async def test_closed_generation_gate_prevents_format_retry(db):
+    from qq_persona_agent.llm_client import LLMRequestSkipped
+    calls=0
+    def handler(request):
+        nonlocal calls
+        calls+=1
+        return httpx.Response(200,json={'id':'test','object':'chat.completion','created':0,'model':'deepseek-chat','choices':[{'index':0,'message':{'role':'assistant','content':' '},'finish_reason':'stop'}]})
+    llm=LLMClient(Settings(api_key='fake'),db)
+    await llm.client.close()
+    llm.client=AsyncOpenAI(api_key='fake',http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    with pytest.raises(LLMRequestSkipped):
+        await llm.complete([{'role':'user','content':'json'}],json_mode=True,can_request=lambda:calls==0)
+    assert calls==1
+    await llm.close()
