@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+*.db*
+*.enc
+.test-data/
+tools/upx/
+exports/
+*.lnk
+.env
+.env.*
+*.log
+examples/codex-config.toml
+examples/.mcp.json
