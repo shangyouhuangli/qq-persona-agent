@@ -1,0 +1,15 @@
+PRAGMA foreign_keys=ON;
+CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value_encrypted BLOB NOT NULL,updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS export_batches(id TEXT PRIMARY KEY,request_json TEXT NOT NULL,cursor TEXT,status TEXT NOT NULL DEFAULT 'running',scanned INTEGER NOT NULL DEFAULT 0,reason TEXT,updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS exported_messages(id INTEGER PRIMARY KEY AUTOINCREMENT,group_id TEXT NOT NULL,message_id TEXT NOT NULL,sender_id TEXT NOT NULL,sender_nickname TEXT NOT NULL,timestamp INTEGER NOT NULL,text TEXT NOT NULL,raw_segments_json TEXT NOT NULL,has_image INTEGER NOT NULL,has_voice INTEGER NOT NULL,has_face INTEGER NOT NULL,has_at INTEGER NOT NULL DEFAULT 0,export_batch_id TEXT NOT NULL,UNIQUE(group_id,message_id));
+CREATE TABLE IF NOT EXISTS batch_messages(batch_id TEXT NOT NULL REFERENCES export_batches(id) ON DELETE CASCADE,message_pk INTEGER NOT NULL REFERENCES exported_messages(id) ON DELETE CASCADE,PRIMARY KEY(batch_id,message_pk));
+CREATE TABLE IF NOT EXISTS personas(id INTEGER PRIMARY KEY AUTOINCREMENT,group_id TEXT,member_id TEXT,member_nickname TEXT,sample_count INTEGER,confidence TEXT,structured_analysis_json TEXT,persona_prompt TEXT,created_at TEXT,updated_at TEXT);
+CREATE TABLE IF NOT EXISTS agents(id INTEGER PRIMARY KEY AUTOINCREMENT,persona_id INTEGER REFERENCES personas(id),group_id TEXT,trigger_mode TEXT,status TEXT,created_at TEXT);
+CREATE TABLE IF NOT EXISTS memory_short(id INTEGER PRIMARY KEY AUTOINCREMENT,agent_id INTEGER REFERENCES agents(id),group_id TEXT,role TEXT,content TEXT,created_at TEXT);
+CREATE TABLE IF NOT EXISTS memory_facts(id INTEGER PRIMARY KEY AUTOINCREMENT,agent_id INTEGER REFERENCES agents(id),scope TEXT,member_id TEXT,fact TEXT,keywords TEXT,created_at TEXT,last_used_at TEXT);
+CREATE TABLE IF NOT EXISTS llm_logs(id INTEGER PRIMARY KEY AUTOINCREMENT,agent_id INTEGER,model TEXT,input_tokens INTEGER,output_tokens INTEGER,latency_ms INTEGER,json_parse_ok INTEGER,error TEXT,created_at TEXT);
+CREATE TABLE IF NOT EXISTS send_logs(id INTEGER PRIMARY KEY AUTOINCREMENT,agent_id INTEGER,group_id TEXT,content_summary TEXT,success INTEGER,error TEXT,created_at TEXT);
+CREATE INDEX IF NOT EXISTS messages_lookup ON exported_messages(group_id,sender_id,timestamp);
+CREATE INDEX IF NOT EXISTS short_lookup ON memory_short(agent_id,id);
+CREATE INDEX IF NOT EXISTS facts_lookup ON memory_facts(agent_id,scope);
+PRAGMA user_version=1;

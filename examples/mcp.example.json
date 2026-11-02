@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "qq_persona": {
+      "type": "stdio",
+      "command": "C:/path/to/qq-persona-agent/.venv/Scripts/python.exe",
+      "args": ["-m", "qq_persona_agent.skill_export"]
+    }
+  }
+}

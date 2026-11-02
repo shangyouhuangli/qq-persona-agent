@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qq-persona-agent"
+version = "0.1.0"
+description = "Local Windows QQ style persona workbench with approval-first sending"
+requires-python = ">=3.11"
+dependencies = ["PySide6-Essentials>=6.7,<6.9", "httpx>=0.28,<0.29", "openai>=1.66,<2", "websockets>=15,<16", "mcp>=1.12,<2", "cryptography>=44"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.25", "pyinstaller>=6.12"]
+
+[project.scripts]
+qq-persona-agent = "qq_persona_agent.app:main"
+qq-persona-mcp = "qq_persona_agent.skill_export:main"
+
+[tool.setuptools.packages.find]
+include = ["qq_persona_agent*"]
+
+[tool.setuptools.package-data]
+qq_persona_agent = ["schema.sql"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
