@@ -69,9 +69,11 @@ class Settings:
     napcat_ws: str = 'ws://127.0.0.1:3001'
     proxy: str = ''
     timeout: int = 30
+    weflow_http: str = 'http://127.0.0.1:5031'
+    weflow_token: str = ''
 
     def validate(self):
-        for key in ('base_url', 'napcat_http', 'napcat_ws'):
+        for key in ('base_url', 'napcat_http', 'napcat_ws', 'weflow_http'):
             url = urlparse(getattr(self, key))
             valid = ('ws', 'wss') if key.endswith('_ws') else ('http', 'https')
             if url.scheme not in valid or not url.hostname or url.username or url.password or url.query or url.fragment:

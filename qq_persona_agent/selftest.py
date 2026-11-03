@@ -5,9 +5,17 @@ from .config import Settings
 
 
 async def check_services(services):
-    settings = Settings(api_key='smoke-secret-not-real', napcat_token='test-token-not-real')
+    settings = Settings(api_key='smoke-secret-not-real', napcat_token='test-token-not-real', weflow_token='weflow-test-not-real')
     await services.configure(settings)
     assert services.store.load().api_key == settings.api_key
+    assert services.store.load().weflow_token == settings.weflow_token
+    def weflow_handler(request):
+        assert request.headers['Authorization'] == 'Bearer weflow-test-not-real'
+        return httpx.Response(200, json={'success': True, 'sessions': []})
+    await services.weflow.http.aclose()
+    services.weflow.http = httpx.AsyncClient(base_url=settings.weflow_http, transport=httpx.MockTransport(weflow_handler),
+                                            headers={'Authorization': 'Bearer weflow-test-not-real'})
+    assert (await services.weflow.test_connection())['success']
     def napcat_handler(request):
         assert request.headers['Authorization'] == 'Bearer test-token-not-real'
         payload = {'get_login_info': {'user_id': 123456789}, 'get_group_list': [{'group_id': 234567890}], 'get_group_member_list': [{'user_id': 345678901}]}
@@ -26,4 +34,4 @@ async def check_services(services):
     services.llm.client = AsyncOpenAI(api_key=settings.api_key, http_client=httpx.AsyncClient(transport=httpx.MockTransport(llm_handler)))
     assert (await services.llm.test_connection())['success']
     assert services.db.one('SELECT json_parse_ok FROM llm_logs')['json_parse_ok']
-    return {'summary': '离线 NapCat/DeepSeek 连接路径自检通过（Mock，不代表真实服务联调）'}
+    return {'summary': '离线 NapCat/DeepSeek/WeFlow 连接路径自检通过（Mock，不代表真实服务联调）'}

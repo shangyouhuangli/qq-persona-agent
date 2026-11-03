@@ -1,6 +1,6 @@
-# QQ 群成员人格智能体
+# QQ / 微信聊天记录人格生成与 QQ 智能体
 
-Windows 10/11 + Python 3.11+，PySide6 QtWidgets 工作台。NapCat OneBot v11 HTTP/正向 WebSocket、DeepSeek、SQLite、人工审批、自主发送、MCP 与 Agent Skill。
+Windows 10/11 + Python 3.11+，PySide6 QtWidgets 工作台。支持 QQ 群聊/私聊与微信聊天记录提取、自己或对方的聊天风格分析、人格画像 JSON 生成；QQ 还支持人工审批回复和显式开启自主发送。微信通过 WeFlow 只读接入。集成 NapCat OneBot v11、DeepSeek、加密 SQLite、MCP 与 Agent Skill。
 
 GitHub仓库包含完整源码、测试、Skill/MCP和打包配置；Windows单文件exe与SHA256校验文件放在Releases。仓库不包含凭据、聊天数据、个人画像、NapCat登录数据或本地Python环境。下载源码后按下方步骤安装依赖；MCP通用示例见examples目录，运行生成脚本可获得本机路径配置。
 
@@ -12,6 +12,8 @@ GitHub仓库包含完整源码、测试、Skill/MCP和打包配置；Windows单�
 2. 按下一节安装并登录 NapCat，配置 HTTP 与正向 WebSocket。
 3. 双击本程序，在设置页保存 DeepSeek 和 NapCat 配置，再执行两项连接测试。
 4. 按“导出预览 → 导出 → 人格预览 → 候选预览 → 人工批准”完成第一次测试。
+
+只使用微信记录生成人格：先按 [WeFlow 配置教程](docs/WEFLOW.md) 加载数据库并开启 API 服务，在本程序保存 WeFlow 地址/Token 与 DeepSeek 配置，然后选择“微信记录（WeFlow）”导出并生成人格 JSON；此流程不需要 NapCat。
 
 exe 无需安装 Python。源码下载包不含 exe、本地虚拟环境、UPX、账号配置和群记录；exe 从 Releases 单独下载。项目源码放在同一目录时，正式程序位于 `dist/QQPersonaAgent.exe`；本机已有的启动快捷方式只是便利入口，GitHub 下载包不包含快捷方式。
 
@@ -128,6 +130,17 @@ QQ每条回复最大字符数（含标点）与短/中/长回复权重可在参�
 
 ## 常见问题
 
+### 微信记录与人格 JSON（WeFlow）
+
+现支持通过 WeFlow 读取微信私聊或群聊记录，选择自己、对方或指定群成员，预览导出后复用人格分析并保存 JSON。
+
+1. 在 [WeFlow](https://github.com/hicccc77/WeFlow) 中先加载微信数据库并确认历史可读，在设置中开启 **API 服务**，取得地址与 Token（默认端口5031）。
+2. 本程序设置页填写 **WeFlow HTTP / WeFlow API Token**，保存并测试连接。
+3. 数据导出选择 **微信记录（WeFlow）**，按名称或 wxid 检索并确认会话，选择发送者与时间范围，先预览再导出。
+4. 在人格生成页生成、编辑并保存人格 JSON。微信记录仅用于读取和画像生成，不提供微信对话、部署或自动发送。
+
+记录默认加密；Token 用 DPAPI 加密。详见 [WeFlow 使用与接口说明](docs/WEFLOW.md)。真实读取取决于 WeFlow 已加载的数据库和版本。
+
 ### 个人私聊：按 QQ 号检索
 
 1. 在**数据导出**页将记录类型切为“个人私聊记录”，输入完整QQ号，点击“按QQ号检索”，核对返回的昵称、QQ号及好友状态并确认。
@@ -216,7 +229,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build.ps1 -NoUPX
 
 ## 验证范围与参考
 
-当前源码通过81项测试，涵盖分页恢复、加密、JSON异常处理、实时读取、审批/停止、回复长度权重及调用前冷却；单文件在本机通过离屏和原生Windows启动自检。这不代表每个QQ/NapCat版本、模型服务或清洁Windows机器均已验证。
+当前源码通过93项测试，涵盖分页恢复、加密、JSON异常处理、实时读取、审批/停止、回复长度权重及调用前冷却；单文件在本机通过离屏和原生Windows启动自检。这不代表每个QQ/NapCat版本、模型服务或清洁Windows机器均已验证。
 
 - [本项目发布与下载](https://github.com/shangyouhuangli/qq-persona-agent/releases)
 - [NapCat 官方项目](https://github.com/NapNeko/NapCatQQ)

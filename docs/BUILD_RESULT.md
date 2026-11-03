@@ -3,17 +3,17 @@
 日期：2026-11-03；构建主机 Windows 11 x64，Python 3.12.4。
 
 - 产物：`dist/QQPersonaAgent.exe`
-- 大小：46,460,822 bytes（约44.31 MiB）
-- SHA256：`f469a9bb066af4b1a1a80de40b9c872b041c7bfb9d4256ad200296f5ff7fd015`
+- 大小：46,479,471 bytes（约44.33 MiB）
+- SHA256：`5e14186da797a338e2ea5d15fb4a4f966cd050177bd468992f7c3379355206a1`
 - PyInstaller 6.22.3，onefile / windowed，PE Subsystem=2（WINDOWS_GUI）。
 - UPX 4.2.4 官方 Windows 版本；`upx=True`。Qt/Python DLL 和 CFG 保护二进制排除压缩，保留正常加载。
 - PySide6 Essentials 6.8.3（QtWidgets）。platforms 插件显式收集。
-- 自动测试：81 passed，新增短句长度、连发及冷却期间零回复调用、旧队列不补答、格式重试门禁测试。
+- 自动测试：93 passed，新增短句长度、连发及冷却期间零回复调用、旧队列不补答、格式重试门禁测试。
 - Skill：通过官方 skill-creator `quick_validate.py`，使用 `python -X utf8` 运行。
 - Codex TOML 与 Claude Code JSON 示例已解析验证，入口路径存在。
 - 源码 GUI 离线/原生启动通过；五页布局已渲染并检查，中文显示正常。
 - 最终 exe：从独立临时工作目录启动，删除 PYTHONPATH/PYTHONHOME/VIRTUAL_ENV/Qt 插件变量，PATH 仅 System32，`--smoke-test` 和 `--native-smoke-test` 均 exit 0。
-- exe 自检覆盖 DPAPI 设置读写、五页创建、日志、停止按钮，以及 NapCat/DeepSeek 的 MockTransport 连接路径；无真实 API 调用或 QQ 发送。
+- exe 自检覆盖 DPAPI 设置读写、五页创建、日志、停止按钮，以及 NapCat/DeepSeek/WeFlow 的 MockTransport 连接路径；无真实 API 调用或 QQ 发送。
 
 这验证了本机隔离环境可启动，不等于清洁 Windows 10/11 系统实机验收。NapCat已升级至4.18.42，并通过真实HTTP登录和向前历史分页验证；DeepSeek及真实发送仍需按ACCEPTANCE.md验收。
 
@@ -30,3 +30,5 @@ JSON可靠性更新见LLM_FORMAT_FIX.md；已对最终exe再次完成隔离PATH�
 个人私聊版：77项测试通过，exe离屏及原生Windows启动通过。按QQ号检索、私聊历史导出和个人消息审批已接入，说明见PRIVATE_CHAT.md；真实私聊联调待NapCat运行后执行。
 
 自己私聊记录更新：可选自己或对方发送的记录，81项测试通过。新版exe已通过隔离环境离屏和原生窗口自检，两个exit均0；已替换正式exe并更新SHA256SUMS。旧exe及构建缓存位于QQPersonaAgentMaintenance/20261103-private-own。未执行真实QQ历史读取或发送。
+
+2026-11-03 WeFlow只读版：支持微信会话检索、群成员选择、自己/对方消息过滤、加密导出和现有人格JSON生成/保存/加载；不含微信发送或监听。93项全量测试通过，末次清洗调整后12项WeFlow测试通过；Skill校验通过。微信导出页原生布局已检查；最终exe在隔离PATH和临时用户数据目录完成离屏/原生窗口启动自检，均exit0。构建与旧exe保存在QQPersonaAgentMaintenance/20261103-weflow，项目仅保留正式exe。未读取真实微信数据库、调用真实DeepSeek或发送任何消息。

@@ -7,6 +7,7 @@ from .models import ExportRequest
 from .services import Services
 from .logging_utils import log
 from .conversations import private_key, valid_key
+from .weflow_exporter import WeFlowExportRequest
 
 
 @asynccontextmanager
@@ -48,6 +49,28 @@ async def export_group_member_history(group_id: str, user_id: str, start_time: i
     path = svc.db.path.parent / f"history-{result['batch_id']}.jsonl.enc"
     svc.exporter.save_encrypted_jsonl(result['batch_id'], path)
     return {**result, 'encrypted_path': str(path)}
+
+
+@mcp.tool(annotations=WRITE)
+async def export_wechat_history(talker: str, user_id: str, start_time: int, end_time: int, ctx: Context,
+                                max_messages: int = 1000, preview_only: bool = True, batch_id: str | None = None) -> dict:
+    """只读取WeFlow微信历史；talker为会话ID，user_id为发送者wxid或__self__。默认预览，导出后复用analyze_member_persona。"""
+    svc = service(ctx)
+    request = WeFlowExportRequest(talker, user_id, start_time, end_time, max_messages)
+    if preview_only:
+        rows = await svc.weflow_exporter.preview(request)
+        return {'preview': rows, 'count': len(rows), 'summary': '请检查发送者与样本；确认后 preview_only=false 加密导出；不会监听或发送微信消息'}
+    result = await svc.weflow_exporter.export(request, batch_id)
+    path = svc.db.path.parent / f"history-{result['batch_id']}.jsonl.enc"
+    svc.weflow_exporter.save_encrypted_jsonl(result['batch_id'], path)
+    return {**result, 'encrypted_path': str(path)}
+
+
+@mcp.tool(annotations=READ)
+async def search_wechat_sessions(keyword: str, ctx: Context) -> dict:
+    """WeFlow按名称或wxid查询会话，需人工确认具体username，不发送消息。"""
+    rows = await service(ctx).weflow.sessions(keyword)
+    return {'sessions': rows, 'summary': '选择并核对username；私聊可选择对方或__self__，群聊需指定成员wxid'}
 
 
 @mcp.tool(annotations=WRITE)

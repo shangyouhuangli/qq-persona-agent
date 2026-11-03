@@ -1,6 +1,6 @@
 ---
 name: qq-persona-agent
-description: 通过本项目 MCP 导出已授权的 QQ 群成员历史，分析聊天风格并预览、部署或停止人格智能体。适用于已配置 NapCat 与 DeepSeek 的本机 Windows 工作流。
+description: 通过本项目 MCP 导出已授权的 QQ 群/私聊或 WeFlow 微信历史并生成画像；QQ 支持预览、部署和停止，微信只读取历史与生成人格。适用于配置 NapCat 或 WeFlow 及 DeepSeek 的本机 Windows 工作流。
 ---
 
 使用已配置的 QQPersonaAgent MCP，不复制导出、分析和运行时代码。配置示例见项目 `examples/`，入口为 `python -m qq_persona_agent.skill_export`。先在 GUI 保存加密凭据，然后关闭 GUI 以释放本地实例锁，再启动 MCP。
@@ -18,3 +18,5 @@ description: 通过本项目 MCP 导出已授权的 QQ 群成员历史，分析�
 私聊：使用 `find_private_contact` 按完整QQ号精确检索，展示昵称、QQ号和是否好友供用户确认，再调用 `export_private_history`（默认只预览）和 `deploy_private_persona_agent`（默认dry_run）。非好友资料可查询不代表有发送权限或历史。export_private_history 的 sender_scope 默认 other（对方）；用户要提取自己时传 self，由NapCat当前登录账号确定发送者。每个批次只分析所选一方，自己的消息不混入对方画像；恢复批次保持原参数。群聊和私聊分开路由；不要将用户对群部署的授权直接解释为向个人自主发送授权。
 
 GUI 和 MCP 不可同时占用数据，遇到实例锁错误应说明当前状态，不删除活跃锁。发送失败自动停止，不自动重试发送；排查权限/禁言/风控后由用户决定是否重新启用。
+
+微信只读：先用 search_wechat_sessions 按名称或 wxid 检索并让用户确认 talker，export_wechat_history 默认仅预览；user_id 设为具体发送者 wxid，或 __self__ 表示 WeFlow 数据库所属账号。确认后导出，再用 analyze_member_persona 生成人格供 GUI 保存 JSON。微信群成员 ID 从 WeFlow 群成员列表确认。没有微信部署或发送工具，不调用 QQ 部署工具来监听微信。

@@ -10,6 +10,8 @@ from .logging_utils import log
 from .napcat_client import NapCatClient
 from .persona_analyzer import PersonaAnalyzer
 from .conversations import valid_key
+from .weflow_client import WeFlowClient, valid_weflow_key, valid_wx_id
+from .weflow_exporter import WeFlowExporter
 
 
 class Services:
@@ -21,11 +23,13 @@ class Services:
         self.wire()
 
     def wire(self):
-        log.register(self.settings.api_key, self.settings.napcat_token)
+        log.register(self.settings.api_key, self.settings.napcat_token, self.settings.weflow_token)
         self.napcat = NapCatClient(self.settings)
         self.napcat.read_retries = min(self.tuning.failure_retries, 3)
         self.llm = LLMClient(self.settings, self.db)
         self.exporter = ChatExporter(self.db, self.napcat)
+        self.weflow = WeFlowClient(self.settings)
+        self.weflow_exporter = WeFlowExporter(self.db, self.weflow)
         self.analyzer = PersonaAnalyzer(self.db, self.llm, self.tuning)
         self.runtime = AgentRuntime(self.db, self.napcat, self.llm, self.tuning, self.notify)
 
@@ -35,6 +39,7 @@ class Services:
             tuning.validate()
         await self.runtime.stop()
         await self.napcat.close()
+        await self.weflow.close()
         await self.llm.close()
         self.settings = settings
         self.tuning = tuning or self.tuning
@@ -47,6 +52,7 @@ class Services:
     async def close(self):
         await self.runtime.stop()
         await self.napcat.close()
+        await self.weflow.close()
         await self.llm.close()
         self.db.close()
 
@@ -75,7 +81,8 @@ class Services:
         for key in ('group_id', 'member_id', 'member_nickname', 'persona_prompt'):
             if not isinstance(p.get(key), str):
                 raise ValueError('人格文件字段类型错误')
-        if not valid_key(p['group_id']) or not p['member_id'].isdigit() or not p['persona_prompt'].strip():
+        valid_identity = (valid_weflow_key(p['group_id']) and valid_wx_id(p['member_id'])) if p['group_id'].startswith('weflow:') else (valid_key(p['group_id']) and p['member_id'].isdigit())
+        if not valid_identity or not p['persona_prompt'].strip():
             raise ValueError('人格文件标识或提示词无效')
         PersonaAnalyzer.validate(p.get('structured_analysis_json', {}))
         p['sample_count'] = int(p['sample_count'])

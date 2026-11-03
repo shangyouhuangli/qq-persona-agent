@@ -128,7 +128,7 @@ class MainWindow(QMainWindow):
         if event['kind'] == 'export_progress':
             self.export_page.batch_id = event['batch_id']
             self.export_page.progress.setRange(0, 0)
-            self.export_page.summary.setText(f"已扫描 {event['scanned']} 条群消息；匹配 {event['count']} 条（条数上限 {event['maximum']}，不代表完成百分比）")
+            self.export_page.summary.setText(f"已扫描 {event['scanned']} 条会话消息；匹配 {event['count']} 条（条数上限 {event['maximum']}，不代表完成百分比）")
         elif event['kind'] == 'failure':
             self.error(event['message'])
         else:
