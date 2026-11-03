@@ -6,6 +6,7 @@ from PySide6.QtCore import QDateTime
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QFormLayout, QComboBox, QLineEdit, QDateTimeEdit, QPlainTextEdit, QProgressBar, QLabel
 from ..models import ExportRequest
 from .common import button, row, spin
+from .contact_search import ContactSearch
 
 
 class ExportPage(QWidget):
@@ -14,6 +15,18 @@ class ExportPage(QWidget):
         self.main, self.batch_id, self.cancel = main, None, threading.Event()
         layout = QVBoxLayout(self)
         form = QFormLayout()
+        self.chat_type = QComboBox()
+        self.chat_type.addItems(['群成员记录', '个人私聊记录'])
+        self.contact = ContactSearch(main)
+        self.contact.hide()
+        form.addRow('记录类型', self.chat_type)
+        form.addRow('私聊 QQ 检索', self.contact)
+        self.sender_scope = QComboBox()
+        self.sender_scope.addItem('对方发送的消息', 'other')
+        self.sender_scope.addItem('自己发送的消息（NapCat 当前登录账号）', 'self')
+        self.sender_scope.hide()
+        form.addRow('提取谁的消息', self.sender_scope)
+        self.chat_type.currentIndexChanged.connect(self.type_changed)
         self.group, self.member = QComboBox(), QComboBox()
         self.filter = QLineEdit()
         self.filter.setPlaceholderText('昵称模糊过滤，仍需在下拉框人工选中成员')
@@ -46,6 +59,12 @@ class ExportPage(QWidget):
     def groups(self):
         self.main.run(self.main.services.napcat.get_group_list(), self.show_groups)
 
+    def type_changed(self, index):
+        self.contact.setVisible(index == 1)
+        self.sender_scope.setVisible(index == 1)
+        for widget in (self.group, self.member, self.filter):
+            widget.setEnabled(index == 0)
+
     def show_groups(self, groups):
         self.group.blockSignals(True)
         self.group.clear()
@@ -58,6 +77,8 @@ class ExportPage(QWidget):
         self.load_members()
 
     def load_members(self, *_):
+        if self.chat_type.currentIndex() == 1:
+            return
         gid = self.group.currentData()
         if gid:
             self.main.run(self.main.services.napcat.get_group_member_list(gid), self.show_members)
@@ -75,7 +96,11 @@ class ExportPage(QWidget):
                 self.member.addItem(f"{name} ({m['user_id']})", str(m['user_id']))
 
     def request(self):
-        req = ExportRequest(str(self.group.currentData() or ''), str(self.member.currentData() or ''), self.start.dateTime().toSecsSinceEpoch(), self.end.dateTime().toSecsSinceEpoch(), self.maximum.value())
+        private = self.chat_type.currentIndex() == 1
+        key = self.contact.key() if private else str(self.group.currentData() or '')
+        user = self.contact.contact['user_id'] if private else str(self.member.currentData() or '')
+        req = ExportRequest(key, user, self.start.dateTime().toSecsSinceEpoch(), self.end.dateTime().toSecsSinceEpoch(), self.maximum.value(),
+                            self.sender_scope.currentData() if private else 'other')
         req.validate()
         return req
 
@@ -105,7 +130,7 @@ class ExportPage(QWidget):
         self.progress.setRange(0, 1)
         self.progress.setValue(1 if result['status'] == 'complete' else 0)
         self.progress.setFormat('已结束' if result['status'] == 'complete' else '未完整获取历史')
-        self.summary.setText(f"{result['summary']}；累计扫描 {result['scanned']} 条群消息；状态 {result['status']}；{result['reason_detail']}；low_sample={result['low_sample']}")
+        self.summary.setText(f"{result['summary']}；累计扫描 {result['scanned']} 条会话消息；状态 {result['status']}；{result['reason_detail']}；low_sample={result['low_sample']}")
         self.main.persona_page.warning.setText('样本不足，建议增加导出条数或时间范围' if result['low_sample'] else '')
         self.main.persona_page.batch.setText(self.batch_id)
         path = self.main.services.db.path.parent / f'history-{self.batch_id}.jsonl.enc'

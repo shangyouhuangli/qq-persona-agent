@@ -12,6 +12,7 @@ from .memory_store import MemoryStore
 from .persona_analyzer import token_estimate
 from .risk_control import RiskControl
 from .llm_client import LLMError, LLMResponseError, LLMRequestSkipped
+from .conversations import history, is_private, valid_key
 
 
 class AgentRuntime:
@@ -52,7 +53,7 @@ class AgentRuntime:
         self.stop_flag.set()
 
     async def start(self, persona_id, group_id, trigger_mode='mention', keywords='', autonomous=False):
-        if trigger_mode not in ('mention', 'keyword', 'autonomous') or not str(group_id).isdigit():
+        if trigger_mode not in ('mention', 'keyword', 'autonomous') or not valid_key(group_id):
             raise ValueError('部署参数无效')
         if trigger_mode == 'keyword' and not any(w.strip() for w in keywords.split(',')):
             raise ValueError('关键词触发需要至少一个关键词，多个以逗号分隔')
@@ -87,9 +88,9 @@ class AgentRuntime:
         self.ws_connected = False
         # Establish the history baseline before processing live events. Old
         # messages supply context but must never generate or send replies.
-        if hasattr(self.napcat, 'get_group_msg_history'):
+        if hasattr(self.napcat, 'get_friend_msg_history' if is_private(self.group_id) else 'get_group_msg_history'):
             try:
-                recent = await self.napcat.get_group_msg_history(self.group_id, count=100)
+                recent = await history(self.napcat, self.group_id, count=100)
                 if self.stop_flag.is_set() or self.generation != run_generation:
                     return {'status': 'stopped', 'summary': '启用已取消'}
                 ordered = sorted(recent, key=lambda m: int(m.get('time', 0)))
@@ -163,14 +164,14 @@ class AgentRuntime:
             raise
         except Exception:
             self.ws_connected = False
-            if hasattr(self.napcat, 'get_group_msg_history'):
+            if hasattr(self.napcat, 'get_friend_msg_history' if is_private(self.group_id) else 'get_group_msg_history'):
                 log.emit('runtime', 'WebSocket 不可用，继续通过 HTTP 每3秒读取群消息', level='WARNING')
                 self.publish('transport', message='WebSocket 不可用；HTTP 每3秒读取群消息')
             else:
                 await self.pause('WebSocket 中断，已停止。请检查 NapCat WS 地址、Token 和网络后重新启用')
 
     async def poll_history(self):
-        if not hasattr(self.napcat, 'get_group_msg_history'):
+        if not hasattr(self.napcat, 'get_friend_msg_history' if is_private(self.group_id) else 'get_group_msg_history'):
             return
         failures = 0
         self.publish('transport', message='HTTP 每3秒同步群消息，等待 WebSocket 事件')
@@ -178,7 +179,7 @@ class AgentRuntime:
             while not self.stop_flag.is_set():
                 await asyncio.sleep(self.poll_interval)
                 try:
-                    page = await self.napcat.get_group_msg_history(self.group_id, count=100)
+                    page = await history(self.napcat, self.group_id, count=100)
                     if self.stop_flag.is_set():
                         return
                     failures = 0
@@ -195,6 +196,17 @@ class AgentRuntime:
             raise
 
     async def ingest(self, event, historical=False):
+        if is_private(getattr(self, 'group_id', '')) and not historical:
+            # Never accept a group event as private even when user IDs match.
+            if event.get('message_type') != 'private':
+                return
+            sender = str(event.get('user_id', event.get('sender', {}).get('user_id', '')))
+            peer = str(event.get('target_id', '')) if sender == self.self_id else sender
+            if peer != self.group_id[8:]:
+                return
+            event = {**event, 'group_id': self.group_id}
+        elif not is_private(getattr(self, 'group_id', '')) and event.get('message_type') == 'private':
+            return
         if self.stop_flag.is_set() or str(event.get('group_id')) != self.group_id:
             return
         row = clean_message(event)
@@ -224,7 +236,7 @@ class AgentRuntime:
             return
         self.since_reflect += 1
         mentions = any(s.get('type') == 'at' and str(s.get('data', {}).get('qq')) == self.self_id for s in segments_of(event.get('message', '')))
-        triggered = (self.trigger_mode == 'mention' and mentions) or (self.trigger_mode == 'keyword' and any(k in row['text'] for k in self.keywords)) or self.trigger_mode == 'autonomous'
+        triggered = (self.trigger_mode == 'mention' and (mentions or is_private(self.group_id))) or (self.trigger_mode == 'keyword' and any(k in row['text'] for k in self.keywords)) or self.trigger_mode == 'autonomous'
         if triggered:
             if self.generation_blocked():
                 return
@@ -314,6 +326,18 @@ class AgentRuntime:
         self.pending.pop(candidate_id, None)
         self.publish('discarded', candidate_id=candidate_id)
 
+    def manual_candidate(self, text):
+        if self.stop_flag.is_set():
+            raise ValueError('请先启用当前会话的预览监听，确认发送目标')
+        if not text.strip() or len(text) > self.tuning.max_reply_chars:
+            raise ValueError(f'手动消息必须为1~{self.tuning.max_reply_chars}字符')
+        if len(self.pending) >= 100:
+            raise ValueError('待批准候选已满，请先处理')
+        cid = uuid.uuid4().hex
+        self.pending[cid] = {'replies': [text], 'generation': self.generation, 'created': time.monotonic()}
+        self.publish('candidate', candidate_id=cid, replies=[text])
+        return cid
+
     async def approve(self, candidate_id, edited=None, automated=False):
         async with self.send_lock:
             candidate = self.pending.get(candidate_id)
@@ -347,7 +371,10 @@ class AgentRuntime:
                     self.publish('blocked', candidate_id=candidate_id, message=reason)
                     return
                 try:
-                    await self.napcat.send_group_msg(self.group_id, text)
+                    if is_private(self.group_id):
+                        await self.napcat.send_private_msg(self.group_id[8:], text)
+                    else:
+                        await self.napcat.send_group_msg(self.group_id, text)
                 except asyncio.CancelledError:
                     # Never retry sends; cancellation may occur after server acceptance.
                     raise

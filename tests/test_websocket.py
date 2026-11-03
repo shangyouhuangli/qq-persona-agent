@@ -12,6 +12,7 @@ async def test_real_local_websocket_auth_and_event_filter():
         seen.append(ws.request.headers.get('Authorization'))
         await ws.send(json.dumps({'post_type': 'meta_event'}))
         await ws.send(json.dumps({'post_type': 'message', 'message_type': 'group', 'group_id': 12345, 'user_id': 67890, 'message': 'hello'}))
+        await ws.send(json.dumps({'post_type': 'message', 'message_type': 'private', 'user_id': 67890, 'message': 'private hello'}))
         await ws.wait_closed()
     async with serve(handler, '127.0.0.1', 0) as server:
         port = server.sockets[0].getsockname()[1]
@@ -19,5 +20,7 @@ async def test_real_local_websocket_auth_and_event_filter():
         events = napcat.events()
         event = await asyncio.wait_for(anext(events), timeout=3)
         assert event['group_id'] == 12345 and seen == ['Bearer ws-test-token']
+        private = await asyncio.wait_for(anext(events), timeout=3)
+        assert private['message_type'] == 'private'
         await events.aclose()
         await napcat.close()

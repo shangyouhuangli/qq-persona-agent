@@ -71,6 +71,28 @@ class NapCatClient:
     async def get_group_member_list(self, group_id):
         return await self.action('get_group_member_list', group_id=int(group_id))
 
+    async def find_contact(self, user_id):
+        from .conversations import private_key
+        value = private_key(user_id)[8:]
+        friends = await self.action('get_friend_list')
+        for friend in friends or []:
+            if str(friend.get('user_id')) == value:
+                return {'user_id': value, 'nickname': str(friend.get('remark') or friend.get('nickname') or value), 'is_friend': True}
+        info = await self.action('get_stranger_info', user_id=int(value))
+        if not isinstance(info, dict) or str(info.get('user_id')) != value:
+            raise NapCatError('未检索到该 QQ 号')
+        return {'user_id': value, 'nickname': str(info.get('nickname') or value), 'is_friend': False}
+
+    async def get_friend_msg_history(self, user_id, message_seq=None, count=100):
+        params = {'user_id': str(user_id), 'count': min(200, max(1, count)), 'reverseOrder': True, 'reverse_order': True}
+        if message_seq is not None:
+            params['message_seq'] = str(message_seq)
+        data = await self.action('get_friend_msg_history', **params)
+        return data.get('messages', []) if isinstance(data, dict) else []
+
+    async def send_private_msg(self, user_id, text):
+        return await self.action('send_private_msg', user_id=str(user_id), message=[{'type': 'text', 'data': {'text': text}}])
+
     async def get_group_msg_history(self, group_id, message_seq=None, count=100):
         # NapCat resolves message_seq through its short message-ID map. Despite
         # the parameter name, callers should prefer the returned message_id.
@@ -97,7 +119,7 @@ class NapCatClient:
                         event = json.loads(data)
                     except (ValueError, TypeError):
                         continue
-                    if isinstance(event, dict) and event.get('post_type') == 'message' and event.get('message_type') == 'group':
+                    if isinstance(event, dict) and event.get('post_type') in ('message', 'message_sent') and event.get('message_type') in ('group', 'private'):
                         yield event
         except asyncio.CancelledError:
             raise

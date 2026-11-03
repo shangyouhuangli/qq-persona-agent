@@ -9,6 +9,7 @@ from .llm_client import LLMClient
 from .logging_utils import log
 from .napcat_client import NapCatClient
 from .persona_analyzer import PersonaAnalyzer
+from .conversations import valid_key
 
 
 class Services:
@@ -74,7 +75,7 @@ class Services:
         for key in ('group_id', 'member_id', 'member_nickname', 'persona_prompt'):
             if not isinstance(p.get(key), str):
                 raise ValueError('人格文件字段类型错误')
-        if not p['group_id'].isdigit() or not p['member_id'].isdigit() or not p['persona_prompt'].strip():
+        if not valid_key(p['group_id']) or not p['member_id'].isdigit() or not p['persona_prompt'].strip():
             raise ValueError('人格文件标识或提示词无效')
         PersonaAnalyzer.validate(p.get('structured_analysis_json', {}))
         p['sample_count'] = int(p['sample_count'])

@@ -15,4 +15,6 @@ description: 通过本项目 MCP 导出已授权的 QQ 群成员历史，分析�
 
 不把凭据、聊天内容或原始工具响应写到 Agent 日志或额外文件。聊天导出为当前 Windows 用户可解密的 `.jsonl.enc`；用户允许的明文人格 JSON 由 GUI 显式保存。不要向其他群转发原文证据。
 
+私聊：使用 `find_private_contact` 按完整QQ号精确检索，展示昵称、QQ号和是否好友供用户确认，再调用 `export_private_history`（默认只预览）和 `deploy_private_persona_agent`（默认dry_run）。非好友资料可查询不代表有发送权限或历史。export_private_history 的 sender_scope 默认 other（对方）；用户要提取自己时传 self，由NapCat当前登录账号确定发送者。每个批次只分析所选一方，自己的消息不混入对方画像；恢复批次保持原参数。群聊和私聊分开路由；不要将用户对群部署的授权直接解释为向个人自主发送授权。
+
 GUI 和 MCP 不可同时占用数据，遇到实例锁错误应说明当前状态，不删除活跃锁。发送失败自动停止，不自动重试发送；排查权限/禁言/风控后由用户决定是否重新启用。

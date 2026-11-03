@@ -1,6 +1,6 @@
 from __future__ import annotations
 import asyncio
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import html
 import json
 import re
@@ -8,6 +8,7 @@ import uuid
 from .db import now
 from .models import ExportRequest
 from .logging_utils import log
+from .conversations import history
 
 
 def segments_of(message):
@@ -42,11 +43,21 @@ class ChatExporter:
     def __init__(self, db, napcat):
         self.db, self.napcat = db, napcat
 
-    async def preview(self, request):
+    async def resolve_request(self, request):
         request.validate()
+        if request.sender_scope == 'self':
+            info = await self.napcat.action('get_login_info')
+            own_id = str(info.get('user_id', '')) if isinstance(info, dict) else ''
+            if not own_id.isdigit() or int(own_id) <= 0:
+                raise ValueError('无法获取 NapCat 当前登录 QQ，不能确定自己的消息')
+            request = replace(request, user_id=own_id)
+        return request
+
+    async def preview(self, request):
+        request = await self.resolve_request(request)
         result, cursor, seen = [], None, set()
         for _ in range(200):
-            page = await self.napcat.get_group_msg_history(request.group_id, cursor)
+            page = await history(self.napcat, request.group_id, cursor)
             if not page:
                 break
             rows = [clean_message(m) for m in page]
@@ -81,11 +92,11 @@ class ChatExporter:
         return None
 
     async def export(self, request: ExportRequest, batch_id=None, progress=None, cancel=None):
-        request.validate()
+        request = await self.resolve_request(request)
         request_json = json.dumps(asdict(request), sort_keys=True)
         if batch_id:
             batch = self.db.one('SELECT * FROM export_batches WHERE id=?', (batch_id,))
-            if not batch or self.db.unpack(batch['request_json']) != request_json:
+            if not batch or ExportRequest(**json.loads(self.db.unpack(batch['request_json']))) != request:
                 raise ValueError('断点批次不存在或请求参数不匹配')
             if batch['status'] == 'complete':
                 return self.result(batch_id)
@@ -105,7 +116,7 @@ class ChatExporter:
                 if cancel and cancel.is_set():
                     status, reason = 'interrupted', 'cancelled'
                     break
-                page = await self.napcat.get_group_msg_history(request.group_id, cursor)
+                page = await history(self.napcat, request.group_id, cursor)
                 if not page:
                     break
                 rows = [clean_message(m) for m in page]
@@ -165,5 +176,5 @@ class ChatExporter:
 
     def save_encrypted_jsonl(self, batch_id, path):
         rows = self.db.messages(batch_id)
-        text = '\n'.join(json.dumps({'timestamp': r['timestamp'], 'message_id': r['message_id'], 'sender_id': r['sender_id'], 'sender_nickname': r['sender_nickname'], 'text': r['text'], 'raw_segments': r['raw_segments_json']}, ensure_ascii=False) for r in rows)
+        text = '\n'.join(json.dumps({'conversation_key': r['group_id'], 'timestamp': r['timestamp'], 'message_id': r['message_id'], 'sender_id': r['sender_id'], 'sender_nickname': r['sender_nickname'], 'text': r['text'], 'raw_segments': r['raw_segments_json']}, ensure_ascii=False) for r in rows)
         path.write_text(self.db.crypto.encrypt(text), encoding='ascii')

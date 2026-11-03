@@ -6,6 +6,7 @@ from .config import data_dir
 from .models import ExportRequest
 from .services import Services
 from .logging_utils import log
+from .conversations import private_key, valid_key
 
 
 @asynccontextmanager
@@ -35,9 +36,9 @@ def service(ctx):
 @mcp.tool(annotations=WRITE)
 async def export_group_member_history(group_id: str, user_id: str, start_time: int, end_time: int,
                                       ctx: Context, max_messages: int = 1000, preview_only: bool = True,
-                                      batch_id: str | None = None) -> dict:
+                                      batch_id: str | None = None, sender_scope: str = 'other') -> dict:
     """默认预览20条；确认后 preview_only=false 执行加密导出；batch_id 恢复中断。时间为 Unix 秒。"""
-    request = ExportRequest(group_id, user_id, start_time, end_time, max_messages)
+    request = ExportRequest(group_id, user_id, start_time, end_time, max_messages, sender_scope)
     request.validate()
     svc = service(ctx)
     if preview_only:
@@ -62,7 +63,7 @@ async def deploy_persona_agent(persona_id: int, group_id: str, ctx: Context, dry
     """默认 dry_run=true 仅返回部署预览。用户明确授权后 false 才监听并自主发送。"""
     svc = service(ctx)
     p = svc.db.persona(persona_id)
-    if not group_id.isdigit() or trigger_mode not in ('mention', 'keyword', 'autonomous'):
+    if not valid_key(group_id) or trigger_mode not in ('mention', 'keyword', 'autonomous'):
         raise ValueError('群号或触发方式无效')
     if trigger_mode == 'keyword' and not keywords.strip():
         raise ValueError('关键词不能为空')
@@ -70,6 +71,28 @@ async def deploy_persona_agent(persona_id: int, group_id: str, ctx: Context, dry
         return {'dry_run': True, 'persona_id': persona_id, 'group_id': group_id, 'trigger_mode': trigger_mode,
                 'persona_prompt': p['persona_prompt'], 'summary': '仅部署预览，未监听、未发送。请确认画像与候选回复，并授权后传 dry_run=false'}
     return {'dry_run': False, **await svc.runtime.start(persona_id, group_id, trigger_mode, keywords, autonomous=True)}
+
+
+@mcp.tool(annotations=READ)
+async def find_private_contact(user_id: str, ctx: Context) -> dict:
+    """按完整QQ号精确检索联系人，不发送；非好友不保证历史/发送可用。"""
+    contact = await service(ctx).napcat.find_contact(user_id)
+    return {**contact, 'summary': '请核对昵称与QQ号后再导出或部署私聊'}
+
+
+@mcp.tool(annotations=WRITE)
+async def export_private_history(user_id: str, start_time: int, end_time: int, ctx: Context,
+                                 max_messages: int = 1000, preview_only: bool = True, batch_id: str | None = None,
+                                 sender_scope: str = 'other') -> dict:
+    """按QQ号定位私聊；sender_scope=other提取对方，self提取当前登录账号。默认仅预览。"""
+    return await export_group_member_history(private_key(user_id), user_id, start_time, end_time, ctx, max_messages, preview_only, batch_id, sender_scope)
+
+
+@mcp.tool(annotations=WRITE)
+async def deploy_private_persona_agent(persona_id: int, user_id: str, ctx: Context, dry_run: bool = True,
+                                       trigger_mode: str = 'autonomous', keywords: str = '') -> dict:
+    """私聊部署默认dry-run；明确授权后false才向指定QQ自主回复。"""
+    return await deploy_persona_agent(persona_id, private_key(user_id), ctx, dry_run, trigger_mode, keywords)
 
 
 @mcp.tool(annotations=WRITE)
